@@ -119,17 +119,13 @@ export default function Home() {
   }, [dropdownOpen]);
 
   useEffect(() => {
-    const scoreContainer = document.querySelector('.score-container');
-    if (!scoreContainer) return;
-
-    const observer = new MutationObserver(() => {
-      const newScore = parseInt(scoreContainer.textContent || '0', 10);
+    window.updateScore = (newScore: number) => {
       setScore(newScore);
-    });
+    };
 
-    observer.observe(scoreContainer, { childList: true, subtree: true });
-
-    return () => observer.disconnect();
+    return () => {
+      window.updateScore = undefined;
+    };
   }, []);
 
   useEffect(() => {
@@ -158,11 +154,7 @@ export default function Home() {
       });
 
       const data = await response.json();
-      if (data.success) {
-        if (data.bestScore) {
-          setBestScore(data.bestScore);
-        }
-      } else {
+      if (!data.success) {
         alert(`Score submission failed: ${data.error || 'Unknown error'}`);
       }
     } catch (error) {
