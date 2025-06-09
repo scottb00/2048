@@ -75,8 +75,12 @@ GameManager.prototype.addStartTiles = function () {
     this.grid.insertTile(tile);
     var tile = new Tile(this.grid.randomAvailableCell(), 32768);
     this.grid.insertTile(tile);
+    var tile = new Tile(this.grid.randomAvailableCell(), 65536);
+    this.grid.insertTile(tile);
+    var tile = new Tile(this.grid.randomAvailableCell(), 131072);
+    this.grid.insertTile(tile);
   }
-  this.addRandomTile(); // Add one more random tile
+  // this.addRandomTile(); // Add one more random tile
   // --- END OF CUSTOM CODE ---
 
   /* --- ORIGINAL CODE ---

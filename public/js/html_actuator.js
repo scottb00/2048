@@ -99,6 +99,20 @@ HTMLActuator.prototype.addTile = function (tile) {
       image32768.classList.add("tile-logo-image");
       inner.appendChild(image32768);
       break;
+    case 65536:
+      const image65536 = document.createElement("img");
+      image65536.src = "/65536.jpg";
+      image65536.alt = "65536";
+      image65536.classList.add("tile-logo-image");
+      inner.appendChild(image65536);
+      break;
+    case 131072:
+      const image131072 = document.createElement("img");
+      image131072.src = "/131072.jpg";
+      image131072.alt = "131072";
+      image131072.classList.add("tile-logo-image");
+      inner.appendChild(image131072);
+      break;
     default:
       inner.textContent = tile.value;
   }
