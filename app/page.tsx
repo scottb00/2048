@@ -17,6 +17,10 @@ function shortenAddress(address?: string) {
   return address.slice(0, 6) + '...' + address.slice(-4);
 }
 
+function isLargeScore(score: number) {
+  return score >= 100000; // Adjust threshold as needed
+}
+
 export default function Home() {
   const { ready, authenticated, user, login, logout, createWallet } = usePrivy();
   console.log('Privy:', { ready, authenticated, user, login, logout, createWallet });
@@ -177,8 +181,8 @@ export default function Home() {
           <div className="heading" style={{ marginBottom: '0px' }}>
             <h1 className="title"><span>2</span><span className="zero">0</span><span>48</span></h1>
             <div className="scores-container" style={{ display: 'flex', gap: '12px' }}>
-              <div className="score-container">{score}</div>
-              <div className="best-container">{bestScore}</div>
+              <div className={`score-container${isLargeScore(score) ? ' compact' : ''}`}>{score}</div>
+              <div className={`best-container${isLargeScore(bestScore) ? ' compact' : ''}`}>{bestScore}</div>
             </div>
           </div>
 
