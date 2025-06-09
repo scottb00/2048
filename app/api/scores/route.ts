@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { kv } from '@vercel/kv';
+// import { kv } from '@vercel/kv'; // Removed kv import
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -9,7 +9,8 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Wallet address is required' }, { status: 400 });
   }
 
-  const bestScore = await kv.get(walletAddress) || 0;
+  // TODO: Replace with actual storage/retrieval logic
+  const bestScore = 0;
 
   return NextResponse.json({ bestScore });
 }
@@ -23,10 +24,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Wallet address and score are required' }, { status: 400 });
     }
 
-    const currentBest = await kv.get(walletAddress) as number || 0;
+    // TODO: Replace with actual storage/retrieval logic
+    const currentBest = 0;
 
     if (score > currentBest) {
-      await kv.set(walletAddress, score);
+      // TODO: Replace with actual storage logic
+      // await kv.set(walletAddress, score); // Removed kv usage
       return NextResponse.json({ success: true, bestScore: score });
     }
 
