@@ -1,5 +1,6 @@
 'use client';
 import {usePrivy} from '@privy-io/react-auth';
+import type {WalletWithMetadata} from '@privy-io/react-auth';
 import Script from 'next/script';
 import Image from 'next/image';
 import { useEffect, useRef, useState } from 'react';
@@ -17,7 +18,12 @@ function shortenAddress(address?: string) {
 }
 
 export default function Home() {
-  const {login, user, logout} = usePrivy();
+  const { ready, authenticated, user, login, logout, createWallet } = usePrivy();
+  console.log('Privy:', { ready, authenticated, user, login, logout, createWallet });
+  console.log('Environment check:', { 
+    privyAppId: process.env.NEXT_PUBLIC_PRIVY_APP_ID,
+    hasAppId: !!process.env.NEXT_PUBLIC_PRIVY_APP_ID 
+  });
   const userRef = useRef(user);
   const [copied, setCopied] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -27,7 +33,17 @@ export default function Home() {
   const [bestScore, setBestScore] = useState(0);
   const [showDisconnecting, setShowDisconnecting] = useState(false);
   const [showSubmittingScore, setShowSubmittingScore] = useState(false);
+  const [isCreatingWallet, setIsCreatingWallet] = useState(false);
 
+  // Only access user/wallet after ready & authenticated
+  let wallet: WalletWithMetadata | undefined = undefined;
+  let walletAddress: string | undefined = undefined;
+  if (ready && authenticated && user) {
+    wallet = user.linkedAccounts.find((account) => account.type === 'wallet') as WalletWithMetadata | undefined;
+    walletAddress = wallet?.address;
+  }
+  console.log(user);
+ 
   useEffect(() => {
     // Reload page on logout
     if (userRef.current && !user) {
@@ -35,12 +51,12 @@ export default function Home() {
     }
     userRef.current = user;
 
-    if (user && user.wallet) {
+    if (ready && authenticated && user && walletAddress) {
       if (window.startGame) {
-        window.startGame(user.wallet.address);
+        window.startGame(walletAddress);
       }
       // Fetch best score
-      fetch(`/api/scores?walletAddress=${user.wallet.address}`)
+      fetch(`/api/scores?walletAddress=${walletAddress}`)
         .then(res => res.json())
         .then(data => {
           if (data.bestScore) {
@@ -48,7 +64,38 @@ export default function Home() {
           }
         });
     }
-  }, [user]);
+  }, [ready, authenticated, user, walletAddress]);
+
+  // Handle wallet creation for users without wallets
+  useEffect(() => {
+    const handleWalletCreation = async () => {
+      // Only try to create wallet if user is authenticated but has no wallet
+      if (ready && authenticated && user && !walletAddress && !isCreatingWallet && createWallet) {
+        console.log('User authenticated but no wallet found, creating wallet...');
+        setIsCreatingWallet(true);
+        
+        try {
+          await createWallet();
+          console.log('Wallet creation initiated');
+        } catch (error) {
+          console.error('Failed to create wallet:', error);
+          setIsCreatingWallet(false);
+        }
+      }
+    };
+
+    // Add a small delay to ensure Privy has time to populate user data
+    const timer = setTimeout(handleWalletCreation, 1000);
+    
+    return () => clearTimeout(timer);
+  }, [ready, authenticated, user, walletAddress, isCreatingWallet, createWallet]);
+
+  // Reset wallet creation state when wallet is found
+  useEffect(() => {
+    if (walletAddress && isCreatingWallet) {
+      setIsCreatingWallet(false);
+    }
+  }, [walletAddress, isCreatingWallet]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -88,7 +135,7 @@ export default function Home() {
   }, [score, bestScore]);
 
   const handleSubmitScore = async () => {
-    if (!user || !user.wallet) {
+    if (!user || !walletAddress) {
       return;
     }
     setShowSubmittingScore(true);
@@ -101,7 +148,7 @@ export default function Home() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          walletAddress: user.wallet.address,
+          walletAddress: walletAddress,
           score: bestScore,
         }),
       });
@@ -143,9 +190,9 @@ export default function Home() {
           </div>
 
           <div className="game-container" style={{ marginTop: '16px' }}>
-            {!user && (
+            {(!ready || !authenticated || !user || !walletAddress) && (
               <div className="game-overlay">
-                <p>Please connect a wallet to play</p>
+                <p>{(!ready || !authenticated || !user) ? 'Please connect a wallet to play' : 'Creating wallet...'}</p>
               </div>
             )}
             <div className="game-message">
@@ -191,12 +238,58 @@ export default function Home() {
           </p>
         </div>
         <div className="logo-container-right">
-          {!user && (
+          {(!ready || !authenticated || !user) && (
             <button className="connect-wallet-button" style={{background: "#4fd1c5", border: 'none'}} onClick={login}>
               Connect Wallet
             </button>
           )}
-          {user && (
+          {ready && authenticated && user && !walletAddress && (
+            <div style={{ 
+              padding: '12px 16px', 
+              background: '#f0f0f0', 
+              borderRadius: '6px', 
+              color: '#666',
+              fontSize: '14px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+              alignItems: 'center'
+            }}>
+              <div>
+                {isCreatingWallet ? 'Creating wallet...' : 'Wallet creation needed'}
+              </div>
+              {!isCreatingWallet && createWallet && (
+                <button 
+                  onClick={async () => {
+                    setIsCreatingWallet(true);
+                    try {
+                      await createWallet();
+                    } catch (error) {
+                      console.error('Manual wallet creation failed:', error);
+                      setIsCreatingWallet(false);
+                    }
+                  }}
+                  style={{
+                    background: '#4fd1c5',
+                    color: 'white',
+                    border: 'none',
+                    padding: '6px 12px',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontSize: '12px'
+                  }}
+                >
+                  Create Wallet
+                </button>
+              )}
+              {!createWallet && (
+                <div style={{ color: '#ff6b6b', fontSize: '12px' }}>
+                  Error: Privy not properly configured
+                </div>
+              )}
+            </div>
+          )}
+          {ready && authenticated && user && walletAddress && (
             <div className="wallet-info" style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <button
                 style={{
@@ -218,7 +311,7 @@ export default function Home() {
                 aria-label="Show wallet menu"
                 ref={addressButtonRef}
               >
-                <span style={{ marginLeft: 8 }}>{shortenAddress(user.wallet?.address)}</span>
+                <span style={{ marginLeft: 8 }}>{shortenAddress(walletAddress)}</span>
                 <svg style={{ marginLeft: 4 }} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
               </button>
               {dropdownOpen && (
@@ -241,11 +334,11 @@ export default function Home() {
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                    <span style={{ fontFamily: 'inherit', fontSize: '1em', fontWeight: 'normal' }}>{shortenAddress(user.wallet?.address)}</span>
+                    <span style={{ fontFamily: 'inherit', fontSize: '1em', fontWeight: 'normal' }}>{shortenAddress(walletAddress)}</span>
                     <button
                       onClick={() => {
-                        if (user.wallet?.address) {
-                          navigator.clipboard.writeText(user.wallet.address);
+                        if (walletAddress) {
+                          navigator.clipboard.writeText(walletAddress);
                           setCopied(true);
                           setTimeout(() => setCopied(false), 1200);
                         }
