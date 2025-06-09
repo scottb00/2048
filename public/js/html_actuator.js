@@ -62,7 +62,46 @@ HTMLActuator.prototype.addTile = function (tile) {
   this.applyClasses(wrapper, classes);
 
   inner.classList.add("tile-inner");
-  inner.textContent = tile.value;
+
+  switch (tile.value) {
+    case 2048:
+      const logoImage = document.createElement("img");
+      logoImage.src = "/2048.jpg";
+      logoImage.alt = "2048";
+      logoImage.classList.add("tile-logo-image");
+      inner.appendChild(logoImage);
+      break;
+    case 4096:
+      const image4096 = document.createElement("img");
+      image4096.src = "/4096.jpg";
+      image4096.alt = "4096";
+      image4096.classList.add("tile-logo-image");
+      inner.appendChild(image4096);
+      break;
+    case 8192:
+      const image8192 = document.createElement("img");
+      image8192.src = "/8192.jpg";
+      image8192.alt = "8192";
+      image8192.classList.add("tile-logo-image");
+      inner.appendChild(image8192);
+      break;
+    case 16384:
+      const image16384 = document.createElement("img");
+      image16384.src = "/16384.jpg";
+      image16384.alt = "16384";
+      image16384.classList.add("tile-logo-image");
+      inner.appendChild(image16384);
+      break;
+    case 32768:
+      const image32768 = document.createElement("img");
+      image32768.src = "/32768.jpg";
+      image32768.alt = "32768";
+      image32768.classList.add("tile-logo-image");
+      inner.appendChild(image32768);
+      break;
+    default:
+      inner.textContent = tile.value;
+  }
 
   if (tile.previousPosition) {
     // Make sure that the tile gets rendered in the previous position first
