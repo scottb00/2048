@@ -23,7 +23,9 @@ function isLargeScore(score: number) {
 
 export default function Home() {
   const { ready, authenticated, user, login, logout, createWallet} = usePrivy();
+  const { identityToken } = useIdentityToken();
   console.log('Privy:', { ready, authenticated, user, login, logout, createWallet});
+  console.log('Identity Token:', { identityToken });
   console.log('Environment check:', { 
     privyAppId: process.env.NEXT_PUBLIC_PRIVY_APP_ID,
     hasAppId: !!process.env.NEXT_PUBLIC_PRIVY_APP_ID 
@@ -52,7 +54,7 @@ export default function Home() {
   // Function to get LiquidMax JWT by exchanging Privy token
   const getLiquidMaxToken = async (): Promise<string | null> => {
     try {
-      const privyToken = await useIdentityToken();
+      const privyToken = identityToken;
       if (!privyToken) {
         console.error('No Privy token available');
         return null;
@@ -72,8 +74,23 @@ export default function Home() {
         console.error('Failed to exchange Privy token for LiquidMax JWT:', response.statusText);
         return null;
       }
-
-      const { token } = await response.json();
+      const data = await response.json();
+      if(data.error = "This account has not been created yet. Please sign up.") {
+        console.log("Onboarding user...");
+        const response = await fetch('http://localhost:8000/api/onboard', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username: "test", //TODO: FIGURE THIS OUT
+            privy_identity_token: privyToken
+          })
+        });
+        const data = await response.json();
+        
+      }
+      console.log("Token:", data.token);
+      console.log("Refresh Token:", data.refresh_token);
+      const token  = await data.token;
       setLiquidMaxToken(token);
       return token;
     } catch (error) {
@@ -113,6 +130,7 @@ export default function Home() {
           
           if (response.ok) {
             const data = await response.json();
+            console.log('Fetched best score data:', data);
             if (data.high_score) {
               setBestScore(data.high_score);
             }
@@ -180,7 +198,6 @@ export default function Home() {
     window.updateScore = (newScore: number) => {
       setScore(newScore);
     };
-
     return () => {
       window.updateScore = undefined;
     };
@@ -188,17 +205,24 @@ export default function Home() {
 
   useEffect(() => {
     if (score > bestScore) {
+      console.log('Updating bestScore in useEffect:', { oldBestScore: bestScore, newScore: score });
       setBestScore(score);
     }
   }, [score, bestScore]);
 
   const handleSubmitScore = async () => {
+    // Sync from DOM before submitting
+    const score = parseInt(document.querySelector('.score-container')?.textContent || '0', 10);
+    const bestScore = parseInt(document.querySelector('.best-container')?.textContent || '0', 10);
+    setScore(score);
+    setBestScore(bestScore);
+
     if (!user || !walletAddress) {
       console.error('Missing user or wallet address:', { user: !!user, walletAddress });
       return;
     }
     
-    console.log('Starting score submission...', { bestScore, walletAddress });
+    console.log('Starting score submission...', { bestScore, score, walletAddress });
     setShowSubmittingScore(true);
     setTimeout(() => setShowSubmittingScore(false), 1500);
 
@@ -215,6 +239,7 @@ export default function Home() {
       const requestBody = {
         high_score: bestScore,
       };
+      console.log('About to submit score. Debug:', { bestScore, score, requestBody });
       
       console.log('Making POST request to leaderboard...', {
         url: 'http://localhost:8000/api/leaderboard/2048/update',
@@ -244,7 +269,6 @@ export default function Home() {
       } else {
         const responseData = await response.json();
         console.log('Success! Response data:', responseData);
-        alert('Score submitted successfully!');
       }
     } catch (error) {
       console.error('Network/Request Error:', error);
