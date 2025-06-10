@@ -37,6 +37,7 @@ export default function Home() {
   const addressButtonRef = useRef<HTMLButtonElement>(null);
   const [score, setScore] = useState(0);
   const [bestScore, setBestScore] = useState(0);
+  const [moveCount, setMoveCount] = useState(0);
   const [showDisconnecting, setShowDisconnecting] = useState(false);
   const [showSubmittingScore, setShowSubmittingScore] = useState(false);
   const [isCreatingWallet, setIsCreatingWallet] = useState(false);
@@ -202,6 +203,18 @@ export default function Home() {
   }, [dropdownOpen]);
 
   useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
+        setMoveCount((count) => count + 1);
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+
+  useEffect(() => {
     window.updateScore = (newScore: number) => {
       setScore(newScore);
     };
@@ -218,11 +231,13 @@ export default function Home() {
   }, [score, bestScore]);
 
   const handleSubmitScore = async () => {
-    // Sync from DOM before submitting
-    const score = parseInt(document.querySelector('.score-container')?.textContent || '0', 10);
-    const bestScore = parseInt(document.querySelector('.best-container')?.textContent || '0', 10);
-    setScore(score);
-    setBestScore(bestScore);
+    const maxAllowedScore = Math.floor(Math.log2(moveCount + 3)) * 4 * moveCount + 20;
+    if (score > maxAllowedScore) {
+      alert(
+        `Illegal score gathered. Your score of ${score} is too high for the ${moveCount} moves made in this round.`,
+      );
+      return;
+    }
 
     if (!user || !walletAddress) {
       console.error('Missing user or wallet address:', { user: !!user, walletAddress });
@@ -303,7 +318,7 @@ export default function Home() {
             <button onClick={handleSubmitScore} className="submit-score-button" style={{ background: '#8f7a66', color: '#fff', border: 'none', borderRadius: 3, padding: '0 16px', height: 37, fontWeight: 700, fontSize: 18, cursor: 'pointer', marginRight: 8 }}>
               Submit Score
             </button>
-            <a className="restart-button" style={{ background: '#8f7a66', color: '#fff', border: 'none', borderRadius: 3, padding: '0 16px', height: 37, fontWeight: 700, fontSize: 18, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>New Game</a>
+            <a onClick={() => setMoveCount(0)} className="restart-button" style={{ background: '#8f7a66', color: '#fff', border: 'none', borderRadius: 3, padding: '0 16px', height: 37, fontWeight: 700, fontSize: 18, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>New Game</a>
           </div>
 
           <div className="game-container" style={{ marginTop: '16px' }}>
@@ -498,6 +513,9 @@ export default function Home() {
             <Image src="/logo.jpg" alt="logo" width="160" height="160" />
           </div>
         </div>
+      </div>
+      <div style={{ marginTop: 10, textAlign: 'center' }}>
+        <a href="/leaderboard" style={{ color: '#4fd1c5', fontWeight: 600, fontSize: 16, textDecoration: 'underline', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Leaderboard</a>
       </div>
       <Script src="/js/bind_polyfill.js" />
       <Script src="/js/classlist_polyfill.js" />
