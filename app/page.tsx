@@ -75,19 +75,26 @@ export default function Home() {
         return null;
       }
       const data = await response.json();
-      if(data.error = "This account has not been created yet. Please sign up.") {
-        console.log("Onboarding user...");
-        const response = await fetch('http://localhost:8000/api/onboard', {
+      console.log("Data:", data);
+      if(data.error == "This account has not been created yet. Please sign up.") {
+        console.log("Onboarding user...", user?.email);
+        const onboardResponse = await fetch('http://localhost:8000/api/onboard', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            username: "test", //TODO: FIGURE THIS OUT
+            username: user?.email?.address || "", // Use email as username, properly JSON encoded
             privy_identity_token: privyToken
           })
         });
-        const data = await response.json();
-        
+        const onboardData = await onboardResponse.json();
+        console.log("Data:", onboardData);
+        console.log("Token:", onboardData.token);
+        console.log("Refresh Token:", onboardData.refresh_token);
+        const token  = await onboardData.token;
+        setLiquidMaxToken(token);
+        return token;
       }
+      console.log("Data:", data);
       console.log("Token:", data.token);
       console.log("Refresh Token:", data.refresh_token);
       const token  = await data.token;

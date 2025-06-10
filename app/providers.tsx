@@ -17,7 +17,7 @@ export default function Providers({children}: {children: React.ReactNode}) {
           createOnLogin: 'users-without-wallets',
         },
         // Configure login methods
-        loginMethods: ['email', 'wallet'],
+        loginMethods: ['email'],
       }}
     >
       {children}
