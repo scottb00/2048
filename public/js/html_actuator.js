@@ -164,6 +164,11 @@ HTMLActuator.prototype.updateScore = function (score) {
 
   this.scoreContainer.textContent = this.score;
 
+  // Update React component's score state
+  if (window.updateScore && typeof window.updateScore === 'function') {
+    window.updateScore(this.score);
+  }
+
   if (difference > 0) {
     var addition = document.createElement("div");
     addition.classList.add("score-addition");

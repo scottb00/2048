@@ -37,7 +37,6 @@ export default function Home() {
   const addressButtonRef = useRef<HTMLButtonElement>(null);
   const [score, setScore] = useState(0);
   const [bestScore, setBestScore] = useState(0);
-  const [moveCount, setMoveCount] = useState(0);
   const [showDisconnecting, setShowDisconnecting] = useState(false);
   const [showSubmittingScore, setShowSubmittingScore] = useState(false);
   const [isCreatingWallet, setIsCreatingWallet] = useState(false);
@@ -203,18 +202,6 @@ export default function Home() {
   }, [dropdownOpen]);
 
   useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
-        setMoveCount((count) => count + 1);
-      }
-    };
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, []);
-
-  useEffect(() => {
     window.updateScore = (newScore: number) => {
       setScore(newScore);
     };
@@ -228,23 +215,18 @@ export default function Home() {
       console.log('Updating bestScore in useEffect:', { oldBestScore: bestScore, newScore: score });
       setBestScore(score);
     }
-  }, [score, bestScore]);
+  }, [score]);
 
   const handleSubmitScore = async () => {
-    const maxAllowedScore = Math.floor(Math.log2(moveCount + 3)) * 4 * moveCount + 20;
-    if (score > maxAllowedScore) {
-      alert(
-        `Illegal score gathered. Your score of ${score} is too high for the ${moveCount} moves made in this round.`,
-      );
-      return;
-    }
-
     if (!user || !walletAddress) {
       console.error('Missing user or wallet address:', { user: !!user, walletAddress });
       return;
     }
     
-    console.log('Starting score submission...', { bestScore, score, walletAddress });
+    // Use the higher of current score or best score
+    const scoreToSubmit = Math.max(score, bestScore);
+    
+    console.log('Starting score submission...', { bestScore, score, scoreToSubmit, walletAddress });
     setShowSubmittingScore(true);
     setTimeout(() => setShowSubmittingScore(false), 1500);
 
@@ -259,9 +241,9 @@ export default function Home() {
       }
 
       const requestBody = {
-        high_score: bestScore,
+        high_score: scoreToSubmit,
       };
-      console.log('About to submit score. Debug:', { bestScore, score, requestBody });
+      console.log('About to submit score. Debug:', { bestScore, score, scoreToSubmit, requestBody });
       
       console.log('Making POST request to leaderboard...', {
         url: 'http://localhost:8000/api/leaderboard/2048/update',
@@ -291,6 +273,8 @@ export default function Home() {
       } else {
         const responseData = await response.json();
         console.log('Success! Response data:', responseData);
+        // Update the best score state with the submitted score
+        setBestScore(scoreToSubmit);
       }
     } catch (error) {
       console.error('Network/Request Error:', error);
@@ -318,7 +302,7 @@ export default function Home() {
             <button onClick={handleSubmitScore} className="submit-score-button" style={{ background: '#8f7a66', color: '#fff', border: 'none', borderRadius: 3, padding: '0 16px', height: 37, fontWeight: 700, fontSize: 18, cursor: 'pointer', marginRight: 8 }}>
               Submit Score
             </button>
-            <a onClick={() => setMoveCount(0)} className="restart-button" style={{ background: '#8f7a66', color: '#fff', border: 'none', borderRadius: 3, padding: '0 16px', height: 37, fontWeight: 700, fontSize: 18, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>New Game</a>
+            <a className="restart-button" style={{ background: '#8f7a66', color: '#fff', border: 'none', borderRadius: 3, padding: '0 16px', height: 37, fontWeight: 700, fontSize: 18, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>New Game</a>
           </div>
 
           <div className="game-container" style={{ marginTop: '16px' }}>
