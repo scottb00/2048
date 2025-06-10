@@ -1,5 +1,5 @@
 'use client';
-import {usePrivy} from '@privy-io/react-auth';
+import {usePrivy, useIdentityToken} from '@privy-io/react-auth';
 import type {WalletWithMetadata} from '@privy-io/react-auth';
 import Script from 'next/script';
 import Image from 'next/image';
@@ -22,8 +22,8 @@ function isLargeScore(score: number) {
 }
 
 export default function Home() {
-  const { ready, authenticated, user, login, logout, createWallet } = usePrivy();
-  console.log('Privy:', { ready, authenticated, user, login, logout, createWallet });
+  const { ready, authenticated, user, login, logout, createWallet} = usePrivy();
+  console.log('Privy:', { ready, authenticated, user, login, logout, createWallet});
   console.log('Environment check:', { 
     privyAppId: process.env.NEXT_PUBLIC_PRIVY_APP_ID,
     hasAppId: !!process.env.NEXT_PUBLIC_PRIVY_APP_ID 
@@ -38,6 +38,7 @@ export default function Home() {
   const [showDisconnecting, setShowDisconnecting] = useState(false);
   const [showSubmittingScore, setShowSubmittingScore] = useState(false);
   const [isCreatingWallet, setIsCreatingWallet] = useState(false);
+  const [liquidMaxToken, setLiquidMaxToken] = useState<string | null>(null);
 
   // Only access user/wallet after ready & authenticated
   let wallet: WalletWithMetadata | undefined = undefined;
@@ -47,6 +48,39 @@ export default function Home() {
     walletAddress = wallet?.address;
   }
   console.log(user);
+
+  // Function to get LiquidMax JWT by exchanging Privy token
+  const getLiquidMaxToken = async (): Promise<string | null> => {
+    try {
+      const privyToken = await useIdentityToken();
+      if (!privyToken) {
+        console.error('No Privy token available');
+        return null;
+      }
+
+      console.log("Privy Token:", privyToken);
+
+      const response = await fetch('http://localhost:8000/api/signin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          privy_identity_token: privyToken
+        })
+      });
+
+      if (!response.ok) {
+        console.error('Failed to exchange Privy token for LiquidMax JWT:', response.statusText);
+        return null;
+      }
+
+      const { token } = await response.json();
+      setLiquidMaxToken(token);
+      return token;
+    } catch (error) {
+      console.error('Error getting LiquidMax token:', error);
+      return null;
+    }
+  };
  
   useEffect(() => {
     // Reload page on logout
@@ -55,18 +89,42 @@ export default function Home() {
     }
     userRef.current = user;
 
+    console.log('Auth state check in useEffect:', { ready, authenticated, hasUser: !!user, hasWalletAddress: !!walletAddress });
+
     if (ready && authenticated && user && walletAddress) {
       if (window.startGame) {
         window.startGame(walletAddress);
       }
-      // Fetch best score
-      fetch(`/api/scores?walletAddress=${walletAddress}`)
-        .then(res => res.json())
-        .then(data => {
-          if (data.bestScore) {
-            setBestScore(data.bestScore);
+      // Fetch best score from the new leaderboard endpoint
+      const fetchBestScore = async () => {
+        try {
+          console.log('Fetching best score...');
+          const liquidMaxJWT = await getLiquidMaxToken();
+          if (!liquidMaxJWT) {
+            console.error('Failed to get LiquidMax JWT for fetching score');
+            return;
           }
-        });
+
+          const response = await fetch('http://localhost:8000/api/leaderboard/2048/my-score', {
+            headers: {
+              'Authorization': `Bearer ${liquidMaxJWT}`,
+            },
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            if (data.high_score) {
+              setBestScore(data.high_score);
+            }
+          } else {
+            console.error('Failed to fetch best score:', response.statusText);
+          }
+        } catch (error) {
+          console.error('Error fetching best score:', error);
+        }
+      };
+      
+      fetchBestScore();
     }
   }, [ready, authenticated, user, walletAddress]);
 
@@ -136,30 +194,62 @@ export default function Home() {
 
   const handleSubmitScore = async () => {
     if (!user || !walletAddress) {
+      console.error('Missing user or wallet address:', { user: !!user, walletAddress });
       return;
     }
+    
+    console.log('Starting score submission...', { bestScore, walletAddress });
     setShowSubmittingScore(true);
     setTimeout(() => setShowSubmittingScore(false), 1500);
 
     try {
-      const response = await fetch('/api/scores', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          walletAddress: walletAddress,
-          score: bestScore,
-        }),
+      console.log('Getting LiquidMax JWT...');
+      const liquidMaxJWT = await getLiquidMaxToken();
+      console.log('LiquidMax JWT retrieved:', !!liquidMaxJWT);
+      
+      if (!liquidMaxJWT) {
+        alert('Failed to get authentication token');
+        return;
+      }
+
+      const requestBody = {
+        high_score: bestScore,
+      };
+      
+      console.log('Making POST request to leaderboard...', {
+        url: 'http://localhost:8000/api/leaderboard/2048/update',
+        body: requestBody,
+        hasToken: !!liquidMaxJWT
       });
 
-      const data = await response.json();
-      if (!data.success) {
-        alert(`Score submission failed: ${data.error || 'Unknown error'}`);
+      const response = await fetch('http://localhost:8000/api/leaderboard/2048/update', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${liquidMaxJWT}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      console.log('Response received:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('API Error Response:', errorText);
+        alert(`Score submission failed: ${errorText || 'Unknown error'}`);
+      } else {
+        const responseData = await response.json();
+        console.log('Success! Response data:', responseData);
+        alert('Score submitted successfully!');
       }
     } catch (error) {
-      console.error('Error submitting score:', error);
-      alert('An error occurred while submitting the score.');
+      console.error('Network/Request Error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      alert(`An error occurred while submitting the score: ${errorMessage}`);
     }
   };
 
