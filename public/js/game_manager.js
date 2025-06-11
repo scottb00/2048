@@ -62,32 +62,31 @@ GameManager.prototype.setup = function () {
 GameManager.prototype.addStartTiles = function () {
   // --- START OF CUSTOM CODE: Add a 2048 tile ---
   // To revert, remove this block and uncomment the original code below.
-  if (this.grid.cellsAvailable()) {
-    var tile = new Tile(this.grid.randomAvailableCell(), 2048);
-    this.grid.insertTile(tile);
-    var tile = new Tile(this.grid.randomAvailableCell(), 2048);
-    this.grid.insertTile(tile);
-    var tile = new Tile(this.grid.randomAvailableCell(), 4096);
-    this.grid.insertTile(tile);
-    var tile = new Tile(this.grid.randomAvailableCell(), 8192);
-    this.grid.insertTile(tile);
-    var tile = new Tile(this.grid.randomAvailableCell(), 16384);
-    this.grid.insertTile(tile);
-    var tile = new Tile(this.grid.randomAvailableCell(), 32768);
-    this.grid.insertTile(tile);
-    var tile = new Tile(this.grid.randomAvailableCell(), 65536);
-    this.grid.insertTile(tile);
-    var tile = new Tile(this.grid.randomAvailableCell(), 131072);
-    this.grid.insertTile(tile);
-  }
+  // if (this.grid.cellsAvailable()) {
+  //   var tile = new Tile(this.grid.randomAvailableCell(), 2048);
+  //   this.grid.insertTile(tile);
+  //   var tile = new Tile(this.grid.randomAvailableCell(), 2048);
+  //   this.grid.insertTile(tile);
+  //   var tile = new Tile(this.grid.randomAvailableCell(), 4096);
+  //   this.grid.insertTile(tile);
+  //   var tile = new Tile(this.grid.randomAvailableCell(), 8192);
+  //   this.grid.insertTile(tile);
+  //   var tile = new Tile(this.grid.randomAvailableCell(), 16384);
+  //   this.grid.insertTile(tile);
+  //   var tile = new Tile(this.grid.randomAvailableCell(), 32768);
+  //   this.grid.insertTile(tile);
+  //   var tile = new Tile(this.grid.randomAvailableCell(), 65536);
+  //   this.grid.insertTile(tile);
+  //   var tile = new Tile(this.grid.randomAvailableCell(), 131072);
+  //   this.grid.insertTile(tile);
+  // }
   // this.addRandomTile(); // Add one more random tile
   // --- END OF CUSTOM CODE ---
 
-  /* --- ORIGINAL CODE ---
+  //  --- ORIGINAL CODE ---
   for (var i = 0; i < this.startTiles; i++) {
     this.addRandomTile();
   }
-  */
 };
 
 // Adds a tile in a random position

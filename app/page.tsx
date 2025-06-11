@@ -1,5 +1,5 @@
 'use client';
-import {usePrivy} from '@privy-io/react-auth';
+import {usePrivy, useIdentityToken} from '@privy-io/react-auth';
 import type {WalletWithMetadata} from '@privy-io/react-auth';
 import Script from 'next/script';
 import Image from 'next/image';
@@ -22,8 +22,10 @@ function isLargeScore(score: number) {
 }
 
 export default function Home() {
-  const { ready, authenticated, user, login, logout, createWallet } = usePrivy();
-  console.log('Privy:', { ready, authenticated, user, login, logout, createWallet });
+  const { ready, authenticated, user, login, logout, createWallet} = usePrivy();
+  const { identityToken } = useIdentityToken();
+  console.log('Privy:', { ready, authenticated, user, login, logout, createWallet});
+  console.log('Identity Token:', { identityToken });
   console.log('Environment check:', { 
     privyAppId: process.env.NEXT_PUBLIC_PRIVY_APP_ID,
     hasAppId: !!process.env.NEXT_PUBLIC_PRIVY_APP_ID 
@@ -38,6 +40,7 @@ export default function Home() {
   const [showDisconnecting, setShowDisconnecting] = useState(false);
   const [showSubmittingScore, setShowSubmittingScore] = useState(false);
   const [isCreatingWallet, setIsCreatingWallet] = useState(false);
+  const [liquidMaxToken, setLiquidMaxToken] = useState<string | null>(null);
 
   // Only access user/wallet after ready & authenticated
   let wallet: WalletWithMetadata | undefined = undefined;
@@ -47,6 +50,61 @@ export default function Home() {
     walletAddress = wallet?.address;
   }
   console.log(user);
+
+  // Function to get LiquidMax JWT by exchanging Privy token
+  const getLiquidMaxToken = async (): Promise<string | null> => {
+    try {
+      const privyToken = identityToken;
+      if (!privyToken) {
+        console.error('No Privy token available');
+        return null;
+      }
+
+      console.log("Privy Token:", privyToken);
+
+      const response = await fetch('https://prometheus-prod--liquidmax-server-fastapi-app.modal.run/api/signin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          privy_identity_token: privyToken
+        })
+      });
+
+      if (!response.ok) {
+        console.error('Failed to exchange Privy token for LiquidMax JWT:', response.statusText);
+        return null;
+      }
+      const data = await response.json();
+      console.log("Data:", data);
+      if(data.error == "This account has not been created yet. Please sign up.") {
+        console.log("Onboarding user...", user?.email);
+        const onboardResponse = await fetch('https://prometheus-prod--liquidmax-server-fastapi-app.modal.run/api/onboard', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username: user?.email?.address || "", // Use email as username, properly JSON encoded
+            privy_identity_token: privyToken
+          })
+        });
+        const onboardData = await onboardResponse.json();
+        console.log("Data:", onboardData);
+        console.log("Token:", onboardData.token);
+        console.log("Refresh Token:", onboardData.refresh_token);
+        const token  = await onboardData.token;
+        setLiquidMaxToken(token);
+        return token;
+      }
+      console.log("Data:", data);
+      console.log("Token:", data.token);
+      console.log("Refresh Token:", data.refresh_token);
+      const token  = await data.token;
+      setLiquidMaxToken(token);
+      return token;
+    } catch (error) {
+      console.error('Error getting LiquidMax token:', error);
+      return null;
+    }
+  };
  
   useEffect(() => {
     // Reload page on logout
@@ -55,18 +113,43 @@ export default function Home() {
     }
     userRef.current = user;
 
+    console.log('Auth state check in useEffect:', { ready, authenticated, hasUser: !!user, hasWalletAddress: !!walletAddress });
+
     if (ready && authenticated && user && walletAddress) {
       if (window.startGame) {
         window.startGame(walletAddress);
       }
-      // Fetch best score
-      fetch(`/api/scores?walletAddress=${walletAddress}`)
-        .then(res => res.json())
-        .then(data => {
-          if (data.bestScore) {
-            setBestScore(data.bestScore);
+      // Fetch best score from the new leaderboard endpoint
+      const fetchBestScore = async () => {
+        try {
+          console.log('Fetching best score...');
+          const liquidMaxJWT = await getLiquidMaxToken();
+          if (!liquidMaxJWT) {
+            console.error('Failed to get LiquidMax JWT for fetching score');
+            return;
           }
-        });
+
+          const response = await fetch('https://prometheus-prod--liquidmax-server-fastapi-app.modal.run/api/leaderboard/2048/my-score', {
+            headers: {
+              'Authorization': `Bearer ${liquidMaxJWT}`,
+            },
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            console.log('Fetched best score data:', data);
+            if (data.high_score) {
+              setBestScore(data.high_score);
+            }
+          } else {
+            console.error('Failed to fetch best score:', response.statusText);
+          }
+        } catch (error) {
+          console.error('Error fetching best score:', error);
+        }
+      };
+      
+      fetchBestScore();
     }
   }, [ready, authenticated, user, walletAddress]);
 
@@ -119,55 +202,84 @@ export default function Home() {
   }, [dropdownOpen]);
 
   useEffect(() => {
-    const scoreContainer = document.querySelector('.score-container');
-    if (!scoreContainer) return;
-
-    const observer = new MutationObserver(() => {
-      const newScore = parseInt(scoreContainer.textContent || '0', 10);
+    window.updateScore = (newScore: number) => {
       setScore(newScore);
-    });
-
-    observer.observe(scoreContainer, { childList: true, subtree: true });
-
-    return () => observer.disconnect();
+    };
+    return () => {
+      window.updateScore = undefined;
+    };
   }, []);
 
   useEffect(() => {
     if (score > bestScore) {
+      console.log('Updating bestScore in useEffect:', { oldBestScore: bestScore, newScore: score });
       setBestScore(score);
     }
-  }, [score, bestScore]);
+  }, [score]);
 
   const handleSubmitScore = async () => {
     if (!user || !walletAddress) {
+      console.error('Missing user or wallet address:', { user: !!user, walletAddress });
       return;
     }
+    
+    // Use the higher of current score or best score
+    const scoreToSubmit = Math.max(score, bestScore);
+    
+    console.log('Starting score submission...', { bestScore, score, scoreToSubmit, walletAddress });
     setShowSubmittingScore(true);
     setTimeout(() => setShowSubmittingScore(false), 1500);
 
     try {
-      const response = await fetch('/api/scores', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          walletAddress: walletAddress,
-          score: bestScore,
-        }),
+      console.log('Getting LiquidMax JWT...');
+      const liquidMaxJWT = await getLiquidMaxToken();
+      console.log('LiquidMax JWT retrieved:', !!liquidMaxJWT);
+      
+      if (!liquidMaxJWT) {
+        alert('Failed to get authentication token');
+        return;
+      }
+
+      const requestBody = {
+        high_score: scoreToSubmit,
+      };
+      console.log('About to submit score. Debug:', { bestScore, score, scoreToSubmit, requestBody });
+      
+      console.log('Making POST request to leaderboard...', {
+        url: 'https://prometheus-prod--liquidmax-server-fastapi-app.modal.run/api/leaderboard/2048/update',
+        body: requestBody,
+        hasToken: !!liquidMaxJWT
       });
 
-      const data = await response.json();
-      if (data.success) {
-        if (data.bestScore) {
-          setBestScore(data.bestScore);
-        }
+      const response = await fetch('https://prometheus-prod--liquidmax-server-fastapi-app.modal.run/api/leaderboard/2048/update', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${liquidMaxJWT}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      console.log('Response received:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('API Error Response:', errorText);
+        alert(`Score submission failed: ${errorText || 'Unknown error'}`);
       } else {
-        alert(`Score submission failed: ${data.error || 'Unknown error'}`);
+        const responseData = await response.json();
+        console.log('Success! Response data:', responseData);
+        // Update the best score state with the submitted score
+        setBestScore(scoreToSubmit);
       }
     } catch (error) {
-      console.error('Error submitting score:', error);
-      alert('An error occurred while submitting the score.');
+      console.error('Network/Request Error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      alert(`An error occurred while submitting the score: ${errorMessage}`);
     }
   };
 
@@ -385,6 +497,9 @@ export default function Home() {
             <Image src="/logo.jpg" alt="logo" width="160" height="160" />
           </div>
         </div>
+      </div>
+      <div style={{ marginTop: 10, textAlign: 'center' }}>
+        <a href="/leaderboard" style={{ color: '#4fd1c5', fontWeight: 600, fontSize: 16, textDecoration: 'underline', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Leaderboard</a>
       </div>
       <Script src="/js/bind_polyfill.js" />
       <Script src="/js/classlist_polyfill.js" />
