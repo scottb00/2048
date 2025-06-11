@@ -62,7 +62,7 @@ export default function Home() {
 
       console.log("Privy Token:", privyToken);
 
-      const response = await fetch('http://localhost:8000/api/signin', {
+      const response = await fetch('https://prometheus-prod--liquidmax-server-fastapi-app.modal.run/api/signin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -78,7 +78,7 @@ export default function Home() {
       console.log("Data:", data);
       if(data.error == "This account has not been created yet. Please sign up.") {
         console.log("Onboarding user...", user?.email);
-        const onboardResponse = await fetch('http://localhost:8000/api/onboard', {
+        const onboardResponse = await fetch('https://prometheus-prod--liquidmax-server-fastapi-app.modal.run/api/onboard', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -129,7 +129,7 @@ export default function Home() {
             return;
           }
 
-          const response = await fetch('http://localhost:8000/api/leaderboard/2048/my-score', {
+          const response = await fetch('https://prometheus-prod--liquidmax-server-fastapi-app.modal.run/api/leaderboard/2048/my-score', {
             headers: {
               'Authorization': `Bearer ${liquidMaxJWT}`,
             },
