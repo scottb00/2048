@@ -23,7 +23,7 @@ const LeaderboardPage = () => {
   useEffect(() => {
     const fetchLeaderboard = async () => {
       try {
-        const response = await fetch('http://localhost:8000/api/leaderboard/2048/');
+        const response = await fetch('https://prometheus-prod--liquidmax-server-fastapi-app.modal.run/api/leaderboard/2048/');
         if (!response.ok) {
           const errorText = await response.text();
           console.error('Failed to fetch leaderboard data:', errorText);

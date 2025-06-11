@@ -246,12 +246,12 @@ export default function Home() {
       console.log('About to submit score. Debug:', { bestScore, score, scoreToSubmit, requestBody });
       
       console.log('Making POST request to leaderboard...', {
-        url: 'http://localhost:8000/api/leaderboard/2048/update',
+        url: 'https://prometheus-prod--liquidmax-server-fastapi-app.modal.run/api/leaderboard/2048/update',
         body: requestBody,
         hasToken: !!liquidMaxJWT
       });
 
-      const response = await fetch('http://localhost:8000/api/leaderboard/2048/update', {
+      const response = await fetch('https://prometheus-prod--liquidmax-server-fastapi-app.modal.run/api/leaderboard/2048/update', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${liquidMaxJWT}`,
